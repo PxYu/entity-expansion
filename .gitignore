@@ -1,0 +1,9 @@
+data/*
+!data/eval/
+.ipynb_checkpoints/
+*.csv
+*.txt
+*.log
+*.set
+*.eps
+*.png
