@@ -82,16 +82,6 @@ def getSkipgramWeightInEntity(eid, skipid):
             counts += v
         return ent[skipid] / counts
 
-def getListOfEntityWeightInSkipgram(eidlst, skipid):
-    skip = skipgram2entity[skipid]
-    counts = 0
-    for k, v in skip.items():
-        counts += v
-    head = 0
-    for eid in eidlst:
-        head += skip[eid]
-    return head / counts
-
 def ap(lst, truth):
     rel = 0
     ap = 0
@@ -100,24 +90,6 @@ def ap(lst, truth):
             rel += 1
             ap += rel/idx
     return ap/len(truth)
-
-def aggregateDictionaries(lst):
-    dct = {}
-    for d in lst:
-        for ent, rank in d.items():
-            if ent not in dct:
-                dct[ent] = rank
-            else:
-                dct[ent] += rank
-    return dct
-
-def getSkipgramMentions(skip):
-    skip_dct = skipgram2entity[skip]
-    cnt = 0
-    for k, v in skip_dct.items():
-        cnt += v
-    return cnt
-
 
 # In[ ]:
 
@@ -195,107 +167,6 @@ end = time.time()
 print("loading data took {:.2f} seconds...".format(end-start))
 
 
-# In[ ]:
-
-
-def getIntersectionEntityCounts(lst, norm):
-    '''
-    input: list of eids
-    output: ranked list of entities by counts
-    '''
-    dct = {}
-    skipgram = [eid2skipgram[x] for x in lst]
-    inter = list(set(skipgram[0]).intersection(*skipgram[1:]))
-    for x in inter:
-        entities = getRankedEntityBySkipgram(x, 100)
-        for ent in entities:
-            if not norm:
-                if ent[0] not in dct:
-                    dct[ent[0]] = ent[1]
-                else:
-                    dct[ent[0]] += ent[1]
-            else:
-                if ent[0] not in dct:
-                    dct[ent[0]] = smooth(ent[1])
-                else:
-                    dct[ent[0]] += smooth(ent[1])
-    ret = sorted(dct, key=dct.get, reverse=True)
-    for seed in lst:
-        if id2entity[seed] in ret:
-            ret.remove(id2entity[seed])
-    return ret
-
-def getDoubleWeightedIntersectionEntityCounts(lst, norm = True, w = 0):
-    '''
-    input: list of eids
-    output: ranked list of entities by counts
-    "double" means defining a d-weight based on skipgram features (#entities and #mentions)
-    '''
-    dct = {}
-    skipgram = [eid2skipgram[x] for x in lst]
-    inter = list(set(skipgram[0]).intersection(*skipgram[1:]))
-    for x in inter:
-        weight = getListOfEntityWeightInSkipgram(lst, x)
-        entities = getRankedEntityBySkipgram(x, 100)
-        if w == 0:
-            weight2 = 1
-        if w == 1:
-            weight2 = math.sqrt((1/len(skipgram2entity[x])) * (1/getSkipgramMentions(x)))
-        elif w == 2:
-            weight2 = math.sqrt(1/len(skipgram2entity[x]))
-        elif w == 3:
-            weight2 = math.sqrt((1/getSkipgramMentions(x)))
-        elif w == 4:
-            weight2 = 1/len(skipgram2entity[x])
-        elif w == 5:
-            weight2 = 1/getSkipgramMentions(x)
-        for ent in entities:
-            if not norm:
-                if ent[0] not in dct:
-                    dct[ent[0]] = ent[1] * weight * weight2
-                else:
-                    dct[ent[0]] += ent[1] * weight * weight2
-            else:
-                if ent[0] not in dct:
-                    dct[ent[0]] = smooth(ent[1]) * weight * weight2
-                else:
-                    dct[ent[0]] += smooth(ent[1]) * weight * weight2
-    ret = sorted(dct, key=dct.get, reverse=True)
-    for seed in lst:
-        if id2entity[seed] in ret:
-            ret.remove(id2entity[seed])
-    return ret
-
-
-# In[ ]:
-
-
-def getUnionEntityCounts(lst, norm):
-    dct = {}
-    skipgram = [eid2skipgram[x] for x in lst]
-    uni = set().union(*skipgram)
-    for x in uni:
-        for y in lst:
-            weight = getEntityWeightInSkipgram(y, x)
-            if weight != 0:
-                entities = getRankedEntityBySkipgram(x, 100)
-                for ent in entities:
-                    if norm:
-                        if ent[0] not in dct:
-                            dct[ent[0]] = smooth(ent[1])
-                        else:
-                            dct[ent[0]] += smooth(ent[1])
-                    else:
-                        if ent[0] not in dct:
-                            dct[ent[0]] = ent[1]
-                        else:
-                            dct[ent[0]] += ent[1]
-    ret = sorted(dct, key=dct.get, reverse=True)
-    for seed in lst:
-        if id2entity[seed] in ret:
-            ret.remove(id2entity[seed])
-    return ret
-
 def getDoubleWeightedUnionEntityCounts(lst, norm=True, w = 0):
     dct = {}
     skipgram = [eid2skipgram[x] for x in lst]
@@ -337,8 +208,6 @@ def getDoubleWeightedUnionEntityCounts(lst, norm=True, w = 0):
 
 # In[ ]:
 
-
-print("Exp4: union with...\n")
 for st in good_gold_set:
     print('=================== {} ===================='.format(st))
     with open("data/eval/results/{}/ecase/{}.log".format(dataset,st), 'w+') as fout:
@@ -359,36 +228,6 @@ for st in good_gold_set:
             fout.write("{}\n".format(str(ap7)))
             fout.write("{}\n".format((end-start)/cnt))
 
-
-# In[ ]:
-
-
-def getUnionEntityCountsWithW2V(lst, norm, power = 2):
-    dct = {}
-    skipgram = [eid2skipgram[x] for x in lst]
-    uni = set().union(*skipgram)
-    for x in uni:
-        for y in lst:
-            weight = getEntityWeightInSkipgram(y, x)
-            if weight != 0:
-                entities = getRankedEntityBySkipgram(x, 100)
-                for ent in entities:
-                    w2v_weight = w2v.similarity(w1=ent[0], w2=id2entity[y]) ** power
-                    if norm:
-                        if ent[0] not in dct:
-                            dct[ent[0]] = smooth(ent[1]) * w2v_weight
-                        else:
-                            dct[ent[0]] += smooth(ent[1]) * w2v_weight
-                    else:
-                        if ent[0] not in dct:
-                            dct[ent[0]] = ent[1] * w2v_weight
-                        else:
-                            dct[ent[0]] += ent[1] * w2v_weight
-    ret = sorted(dct, key=dct.get, reverse=True)
-    for seed in lst:
-        if id2entity[seed] in ret:
-            ret.remove(id2entity[seed])
-    return ret
 
 def getDoubleWeightedUnionEntityCountsWithW2V(lst, norm=True, w = 0, power = 2):
     dct = {}
@@ -433,7 +272,6 @@ def getDoubleWeightedUnionEntityCountsWithW2V(lst, norm=True, w = 0, power = 2):
 # In[ ]:
 
 
-print("Exp5: union with w2v...\n")
 for st in good_gold_set:
     print('=================== {} ===================='.format(st))
     with open("data/eval/results/{}/ecase_w2v/{}.log".format(dataset,st), 'w+') as fout:
@@ -463,33 +301,6 @@ bert = KeyedVectors.load_word2vec_format(bert_path, binary=False)
 
 # In[ ]:
 
-
-def getUnionEntityCountsWithBert(lst, norm, power = 2):
-    dct = {}
-    skipgram = [eid2skipgram[x] for x in lst]
-    uni = set().union(*skipgram)
-    for x in uni:
-        for y in lst:
-            weight = getEntityWeightInSkipgram(y, x)
-            if weight != 0:
-                entities = getRankedEntityBySkipgram(x, 100)
-                for ent in entities:
-                    w2v_weight = bert.similarity(w1=ent[0], w2=id2entity[y]) ** power
-                    if norm:
-                        if ent[0] not in dct:
-                            dct[ent[0]] = smooth(ent[1]) * w2v_weight
-                        else:
-                            dct[ent[0]] += smooth(ent[1]) * w2v_weight
-                    else:
-                        if ent[0] not in dct:
-                            dct[ent[0]] = ent[1] * w2v_weight
-                        else:
-                            dct[ent[0]] += ent[1] * w2v_weight
-    ret = sorted(dct, key=dct.get, reverse=True)
-    for seed in lst:
-        if id2entity[seed] in ret:
-            ret.remove(id2entity[seed])
-    return ret
 
 def getDoubleWeightedUnionEntityCountsWithBert(lst, norm=True, w = 0, power = 2):
     dct = {}
@@ -534,7 +345,6 @@ def getDoubleWeightedUnionEntityCountsWithBert(lst, norm=True, w = 0, power = 2)
 # In[ ]:
 
 
-print("Exp7: union with bert...\n")
 for st in good_gold_set:
     print('=================== {} ===================='.format(st))
     with open("data/eval/results/{}/ecase_bert/{}.log".format(dataset,st), 'w+') as fout:
@@ -553,4 +363,3 @@ for st in good_gold_set:
             end = time.time()
             fout.write("{}\n".format(str(ap7)))
             fout.write("{}\n".format((end-start)/cnt))
-
